@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build", // The task's name
+      "type": "shell", // Uses the shell to run commands
+      "command": "cmake --build build", // The build command
+      "group": {
+        "kind": "build",
+        "isDefault": true // Marks this as the default build task
+      },
+      "problemMatcher": ["$gcc"], // Detects and highlights errors in output
+      "detail": "Custom build task to build with CMake"
+    }
+  ]
+}
