@@ -2133,31 +2133,37 @@ public:
 
     void sort(vector<int> arr) {
         auto start = high_resolution_clock::now();
-        if (arr.size() == 0) return;
+        
+        if (arr.empty()) return;
 
-        int min = arr[0];
-        int max = arr[0];
+        // Find min and max values
+        int min = arr[0], max = arr[0];
         for (int i = 1; i < arr.size(); i++) {
             if (arr[i] < min) min = arr[i];
             if (arr[i] > max) max = arr[i];
         }
+
+        // Calculate range and create holes
         int range = max - min + 1;
+        
+        // Check if range is too large (memory efficient check)
+        if (range > 1000000) {  // Arbitrary limit to prevent excessive memory usage
+            // Fallback to another sorting method or handle error
+            std::sort(arr.begin(), arr.end());
+        } else {
+            vector<vector<int>> holes(range);  // Use vectors to store duplicates
 
-        vector<int> holes;
-        for (int i = 0; i < range; i++) {
-            holes.push_back(0);
-        }
+            // Place elements in respective holes
+            for (int i = 0; i < arr.size(); i++) {
+                holes[arr[i] - min].push_back(arr[i]);
+            }
 
-        for (int i = 0; i < arr.size(); i++) {
-            holes[arr[i] - min]++;
-        }
-
-        int index = 0;
-        for (int i = 0; i < range; i++) {
-            while (holes[i] > 0) {
-                arr[index] = i + min;
-                index++;
-                holes[i]--;
+            // Collect elements from holes
+            int index = 0;
+            for (int i = 0; i < range; i++) {
+                for (int j = 0; j < holes[i].size(); j++) {
+                    arr[index++] = holes[i][j];
+                }
             }
         }
 
@@ -2294,30 +2300,46 @@ public:
 
         if (arr.empty()) return;
 
+        // Find max value
         int max = *max_element(arr.begin(), arr.end());
-        vector<vector<int>> beads(max, vector<int>(arr.size(), 0));
+        
+        // Safety check for reasonable memory usage
+        if (max > 100000) {  // Arbitrary limit to prevent excessive memory usage
+            std::sort(arr.begin(), arr.end());
+        } else {
+            int n = arr.size();
+            // Create grid of beads
+            vector<vector<bool>> beads(n, vector<bool>(max, false));
 
-        for (int i = 0; i < arr.size(); ++i) {
-            for (int j = 0; j < arr[i]; ++j) {
-                beads[j][i] = 1;
+            // Drop the beads
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < arr[i]; j++) {
+                    beads[i][j] = true;
+                }
             }
-        }
 
-        for (int j = 0; j < max; ++j) {
-            int sum = 0;
-            for (int i = 0; i < arr.size(); ++i) {
-                sum += beads[j][i];
-                beads[j][i] = 0;
+            // Let beads fall to the bottom
+            for (int j = 0; j < max; j++) {
+                // Count beads in column
+                int sum = 0;
+                for (int i = 0; i < n; i++) {
+                    if (beads[i][j]) sum++;
+                }
+                
+                // Fill bottom of column
+                for (int i = 0; i < n; i++) {
+                    beads[i][j] = i >= (n - sum);
+                }
             }
-            for (int i = arr.size() - sum; i < arr.size(); ++i) {
-                beads[j][i] = 1;
-            }
-        }
 
-        for (int i = 0; i < arr.size(); ++i) {
-            int j;
-            for (j = 0; j < max && beads[j][i]; ++j);
-            arr[i] = j;
+            // Count beads in each row
+            for (int i = 0; i < n; i++) {
+                int count = 0;
+                for (int j = 0; j < max; j++) {
+                    if (beads[i][j]) count++;
+                }
+                arr[i] = count;
+            }
         }
 
         auto stop = high_resolution_clock::now();
@@ -2334,11 +2356,11 @@ public:
 
 
 class Tournament {
+
+public:
     int matchesPlayed = 1;
     vector<Algorithm*> algorithms;
     vector<pair<Algorithm*, Algorithm*>> matchUps;
-
-public:
     Tournament() {
         // Initialize algorithms
         algorithms.push_back(new SelectionSort());
@@ -2454,7 +2476,7 @@ public:
         });
 
         // Print header with divider - increased Algorithm width from 18 to 25
-        cout << "\n╔═════╦═════════════════════════════╦═════════╦══════╦════════╦══════╦═══════════════╦═══════════════╦═══════════════╦════════╗\n";
+        cout << "\n╔═════╦═════════════════════════════╦═════════╦══════╦═══════╦══════╦═══════════════╦═══════════════╦═══════════════╦════════╗\n";
         cout << "║ " << left << setw(3) << "Pos" 
              << " ║ " << setw(25) << "Algorithm"
              << " ║ " << setw(7) << "Matches"
@@ -2465,7 +2487,7 @@ public:
              << " ║ " << setw(13) << "SlowestTime"
              << " ║ " << setw(13) << "CurrentTime"
              << " ║ " << setw(6) << "Points" << "   ║\n";
-        cout << "╠═════╬═════════════════════════════╬═════════╬══════╬════════╬══════╬═══════════════╬═══════════════╬═══════════════╬════════╣\n";
+        cout << "╠═════╬════��════════════════════════╬═════════╬══════╬════════╬══════╬═══════════════╬═══════════════╬═══════════════╬════════╣\n";
 
         int pos = 1;
         for (auto a : sortedAlg) {
@@ -2486,23 +2508,400 @@ public:
     }
 };
 
+class WorldCup : public Tournament {
+private:
+    vector<vector<Algorithm*>> groups;
+    const int TEAMS_PER_GROUP = 4;
+
+    vector<Algorithm*> qualifiedTeams;
+    Algorithm* champion = nullptr;
+    Algorithm* runnerUp = nullptr;
+    Algorithm* thirdPlace = nullptr;
+
+    Algorithm* playKnockoutMatch(Algorithm* team1, Algorithm* team2, vector<int>& arr, const string& stage) {
+        cout << "\n" << stage << " MATCH:\n";
+        cout << "─────────────\n";
+        cout << team1->name << " vs " << team2->name << "\n\n";
+
+        team1->sort(arr);
+        team2->sort(arr);
+
+        team1->matches++;
+        team2->matches++;
+
+        Algorithm* winner = (team1->currentTime < team2->currentTime) ? team1 : team2;
+        Algorithm* loser = (winner == team1) ? team2 : team1;
+
+        if (winner == team1) {
+            team1->wins++;
+            team2->losses++;
+            team1->points += 3;
+        } else {
+            team2->wins++;
+            team1->losses++;
+            team2->points += 3;
+        }
+
+        cout << team1->name << ": " << team1->timeAsString(4) << "\n";
+        cout << team2->name << ": " << team2->timeAsString(4) << "\n";
+        cout << "\nWINNER: " << winner->name << "\n";
+        cout << "────────────────────────────────────\n";
+
+        return winner;
+    }
+
+private:
+    vector<int> generateArray(int size, string type) {
+        vector<int> arr(size);
+        
+        if (type == "random") {
+            random_device rd;
+            uniform_int_distribution<int> dist(1, size * 10);
+            for (int i = 0; i < size; i++) {
+                arr[i] = dist(rd);
+            }
+        }
+        else if (type == "sorted") {
+            for (int i = 0; i < size; i++) {
+                arr[i] = i;
+            }
+        }
+        else if (type == "reverse") {
+            for (int i = 0; i < size; i++) {
+                arr[i] = size - i;
+            }
+        }
+        
+        return arr;
+    }
+
+    void playGroupMatch(Algorithm* team1, Algorithm* team2, int size) {
+        cout << "\nMATCH: " << team1->name << " vs " << team2->name << "\n";
+        cout << "─────────────────\n";
+
+        // Play with sorted arrays (3 times)
+            vector<int> sortedArr = generateArray(size, "sorted");
+            playMatch(team1, team2, sortedArr);
+
+        // Play with random arrays (3 times)
+            vector<int> randomArr = generateArray(size, "random");
+            playMatch(team1, team2, randomArr);
+
+
+        // Play with reverse sorted arrays (3 times)
+            vector<int> reverseArr = generateArray(size, "reverse");
+            playMatch(team1, team2, reverseArr);
+        
+        cout << "────────────────────────────────────\n";
+    }
+
+    Algorithm* playKnockoutMatch(Algorithm* team1, Algorithm* team2, int size, const string& stage) {
+        cout << "\n" << stage << " MATCH:\n";
+        cout << "─────────────\n";
+        cout << team1->name << " vs " << team2->name << "\n\n";
+
+        int team1Wins = 0;
+        int team2Wins = 0;
+
+        // Play with sorted array
+        vector<int> sortedArr = generateArray(size, "sorted");
+        team1->sort(sortedArr);
+        team2->sort(sortedArr);
+        if(team1->currentTime < team2->currentTime) team1Wins++;
+        else team2Wins++;
+        cout << "Sorted Array:   " << team1->name << ": " << team1->timeAsString(4) 
+             << " vs " << team2->name << ": " << team2->timeAsString(4) << "\n";
+
+        // Play with random array
+        vector<int> randomArr = generateArray(size, "random");
+        team1->sort(randomArr);
+        team2->sort(randomArr);
+        if(team1->currentTime < team2->currentTime) team1Wins++;
+        else team2Wins++;
+        cout << "Random Array:   " << team1->name << ": " << team1->timeAsString(4) 
+             << " vs " << team2->name << ": " << team2->timeAsString(4) << "\n";
+
+        // Play with reverse array
+        vector<int> reverseArr = generateArray(size, "reverse");
+        team1->sort(reverseArr);
+        team2->sort(reverseArr);
+        if(team1->currentTime < team2->currentTime) team1Wins++;
+        else team2Wins++;
+        cout << "Reverse Array:  " << team1->name << ": " << team1->timeAsString(4) 
+             << " vs " << team2->name << ": " << team2->timeAsString(4) << "\n";
+
+        Algorithm* winner = (team1Wins > team2Wins) ? team1 : team2;
+        Algorithm* loser = (winner == team1) ? team2 : team1;
+
+        // Update match statistics
+        team1->matches++;
+        team2->matches++;
+
+        if (winner == team1) {
+            team1->wins++;
+            team2->losses++;
+            team1->points += 3;
+        } else {
+            team2->wins++;
+            team1->losses++;
+            team2->points += 3;
+        }
+
+        cout << "\nSCORE: " << team1->name << " " << team1Wins << " - " << team2Wins << " " << team2->name;
+        cout << "\nWINNER: " << winner->name << " (won " << max(team1Wins, team2Wins) << " out of 3)\n";
+        cout << "────────────────────────────────────\n";
+
+        return winner;
+    }
+
+public:
+    WorldCup() : Tournament() {
+        createGroups();
+    }
+
+    void createGroups() {
+        // Use algorithms directly since it's now protected
+        vector<Algorithm*> allTeams = algorithms;
+        
+        // Shuffle teams randomly for fair group distribution
+        random_device rd;
+        mt19937 gen(rd());
+        shuffle(allTeams.begin(), allTeams.end(), gen);
+
+        // Calculate number of groups needed
+        int totalTeams = allTeams.size();
+        int numGroups = (totalTeams + TEAMS_PER_GROUP - 1) / TEAMS_PER_GROUP;
+        groups.resize(numGroups);
+
+        // Distribute teams to groups
+        int currentTeam = 0;
+        for (int i = 0; i < numGroups && currentTeam < totalTeams; i++) {
+            for (int j = 0; j < TEAMS_PER_GROUP && currentTeam < totalTeams; j++) {
+                groups[i].push_back(allTeams[currentTeam++]);
+            }
+        }
+
+        // Print group assignments
+        printGroups();
+    }
+
+    void printGroups() {
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║             WORLD CUP GROUPS               ║\n";
+        cout << "╠════════════════════════════════════════════╣\n";
+
+        for (int i = 0; i < groups.size(); i++) {
+            cout << "║ GROUP " << (char)('A' + i) << ":                               ║\n";
+            cout << "╠────────────────────────────────────────────╣\n";
+            
+            for (Algorithm* team : groups[i]) {
+                cout << "║ " << left << setw(38) << team->name << " ║\n";
+            }
+            
+            if (i < groups.size() - 1) {
+                cout << "╠═══════════════════════════════════════════╣\n";
+            }
+        }
+        
+        cout << "╚════════════════════════════════════════════╝\n\n";
+    }
+
+    void playGroupStage(int size) {
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║            GROUP STAGE MATCHES             ║\n";
+        cout << "╚════════════════════════════════════════════╝\n\n";
+
+        for (int g = 0; g < groups.size(); g++) {
+            cout << "GROUP " << (char)('A' + g) << " MATCHES:\n";
+            cout << "─────────────────\n\n";
+
+            // Round robin within each group
+            for (int i = 0; i < groups[g].size(); i++) {
+                for (int j = i + 1; j < groups[g].size(); j++) {
+                    playGroupMatch(groups[g][i], groups[g][j], size);
+                }
+            }
+
+            // Print group standings after all matches
+            printGroupStandings(g);
+            cout << "\n";
+        }
+    }
+
+    void printGroupStandings(int groupIndex) {
+        vector<Algorithm*> groupTeams = groups[groupIndex];
+        
+        // Sort teams by points and then by fastest time
+        sort(groupTeams.begin(), groupTeams.end(), [](Algorithm* a, Algorithm* b) {
+            if (a->points == b->points)
+                return a->fastestTime < b->fastestTime;
+            return a->points > b->points;
+        });
+
+        cout << "\nGROUP " << (char)('A' + groupIndex) << " STANDINGS:\n";
+        cout << "╔════╦═════════════════════════════╦═════════╦══════╦════════╦══════╦═══════════════╦═══════════════╦═══════════════╦════════╗\n";
+        cout << "║Pos ║ Team                        ║ Played  ║ Wins ║ Losses ║ Ties ║ FastestTime   ║ SlowestTime   ║ CurrentTime   ║ Points ║\n";
+        cout << "╠════╬═════════════════════════════╬═════════╬══════╬════════╬══════╬═══════════════╬═══════════════╬═══════════════╬════════╣\n";
+
+        for (int i = 0; i < groupTeams.size(); i++) {
+            Algorithm* team = groupTeams[i];
+            cout << "║ " << left << setw(2) << (i + 1) 
+                 << " ║ " << setw(25) << team->name 
+                 << "   ║ " << setw(7) << team->matches 
+                 << " ║ " << setw(4) << team->wins 
+                 << " ║ " << setw(6) << team->losses 
+                 << " ║ " << setw(4) << team->ties 
+                 << " ║ " << setw(13) << team->timeAsString(1)  // Fastest time
+                 << " ║ " << setw(13) << team->timeAsString(2)  // Slowest time
+                 << " ║ " << setw(13) << team->timeAsString(4)  // Current time
+                 << " ║ " << setw(6) << team->points << " ║\n";
+        }
+        
+        cout << "╚════╩═════════════════════════════╩═════════╩══════╩════════╩══════╩═══════════════╩═══════════════╩═══════════════╩════════╝\n";
+    }
+
+    void playKnockoutStage(int size) {
+        // Get top 2 teams from each group
+        qualifiedTeams.clear();
+        for (const auto& group : groups) {
+            vector<Algorithm*> groupTeams = group;
+            sort(groupTeams.begin(), groupTeams.end(), [](Algorithm* a, Algorithm* b) {
+                if (a->points == b->points)
+                    return a->fastestTime < b->fastestTime;
+                return a->points > b->points;
+            });
+            if (groupTeams.size() >= 1) qualifiedTeams.push_back(groupTeams[0]);
+            if (groupTeams.size() >= 2) qualifiedTeams.push_back(groupTeams[1]);
+        }
+
+        // Round of 18
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║              ROUND OF 18                   ║\n";
+        cout << "╚════════════════════════════════════════════╝\n";
+
+        vector<Algorithm*> quarterFinalists;
+        for (int i =0; i < qualifiedTeams.size(); i += 2) {
+            if (i + 1 < qualifiedTeams.size()) {
+                Algorithm* winner = playKnockoutMatch(qualifiedTeams[i], qualifiedTeams[i + 1], size, "ROUND OF 16");
+                quarterFinalists.push_back(winner);
+            }
+        }
+
+        // Quarter Finals
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║            QUARTER FINALS                  ║\n";
+        cout << "╚════════════════════════════════════════════╝\n";
+
+        vector<Algorithm*> semiFinalists;
+        for (int i = 0; i < quarterFinalists.size(); i += 2) {
+            if (i + 1 < quarterFinalists.size()) {
+                Algorithm* winner = playKnockoutMatch(quarterFinalists[i], quarterFinalists[i + 1], size, "QUARTER FINAL");
+                semiFinalists.push_back(winner);
+            }
+        }
+
+        // Semi Finals
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║             SEMI FINALS                    ║\n";
+        cout << "╚════════════════════════════════════════════╝\n";
+
+        vector<Algorithm*> finalists;
+        vector<Algorithm*> thirdPlaceContenders;
+        for (int i = 0; i < semiFinalists.size(); i += 2) {
+            if (i + 1 < semiFinalists.size()) {
+                Algorithm* winner = playKnockoutMatch(semiFinalists[i], semiFinalists[i + 1], size, "SEMI FINAL");
+                Algorithm* loser = (winner == semiFinalists[i]) ? semiFinalists[i + 1] : semiFinalists[i];
+                finalists.push_back(winner);
+                thirdPlaceContenders.push_back(loser);
+            }
+        }
+
+        // Third Place Playoff
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║          THIRD PLACE PLAYOFF               ║\n";
+        cout << "╚════════════════════════════════════════════╝\n";
+
+        if (thirdPlaceContenders.size() >= 2) {
+            thirdPlace = playKnockoutMatch(thirdPlaceContenders[0], thirdPlaceContenders[1], size, "THIRD PLACE PLAYOFF");
+        }
+
+        // Final
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║               FINAL                        ║\n";
+        cout << "╚════════════════════════════════════════════╝\n";
+
+        if (finalists.size() >= 2) {
+            champion = playKnockoutMatch(finalists[0], finalists[1], size, "FINAL");
+            runnerUp = (champion == finalists[0]) ? finalists[1] : finalists[0];
+        }
+
+        // Print Final Results
+        printFinalResults();
+    }
+
+    void printFinalResults() {
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║           WORLD CUP RESULTS                ║\n";
+        cout << "╠══════════════════════════════════════════╣\n";
+        if (champion) {
+            cout << "║ CHAMPION:     " << left << setw(27) << champion->name << " ║\n";
+        }
+        if (runnerUp) {
+            cout << "║ RUNNER-UP:    " << left << setw(27) << runnerUp->name << " ║\n";
+        }
+        if (thirdPlace) {
+            cout << "║ THIRD PLACE:  " << left << setw(27) << thirdPlace->name << " ║\n";
+        }
+        cout << "╚════════════════════════════════════════════╝\n\n";
+
+        // Print final tournament statistics
+        pointsTable();
+    }
+
+    void runWorldCup(int size) {
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║              WORLD CUP 2024                ║\n";
+        cout << "╚════════════════════════════════════════════╝\n\n";
+
+        // Play group stage
+        playGroupStage(size);
+        
+        // Play knockout stages
+        playKnockoutStage(size);
+    }
+
+private:
+    void printOverallResults() {
+        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "║           OVERALL TOURNAMENT SUMMARY        ║\n";
+        cout << "╚════════════════════════════════════════════╝\n\n";
+
+        cout << "Random Array Tournament Winner:  " << champion->name << "\n";
+        cout << "Sorted Array Tournament Winner:  " << champion->name << "\n";
+        cout << "Reverse Array Tournament Winner: " << champion->name << "\n\n";
+    }
+};
+
 int main(void){
-   random_device rd;
-   uniform_int_distribution d(1, 100);
+//    random_device rd;
+//    uniform_int_distribution d(1, 100);
 
     auto start = high_resolution_clock::now();
 
-   vector<int> a;
-   const int MAX_SIZE = 50000;
-   for(int i  = 0; i < MAX_SIZE; i++){
-        int num = d(rd);
-        a.push_back(num);
-   }
+//    vector<int> a;
+   const int MAX_SIZE = 10000;
+//    for(int i  =0; i < MAX_SIZE; i++){
+//         int num = d(rd);
+//         a.push_back(num);
+//    }
 
    cout << "Starting Tournament: " << endl;
 
-    Tournament tourney;
-    tourney.playTournament(a);
+    // Tournament tourney;
+    // tourney.playTournament(a);
+
+    WorldCup wc;
+    wc.runWorldCup(MAX_SIZE);
 
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
