@@ -3,5 +3,8 @@
     "CMAKE_C_COMPILER": "/usr/bin/clang",
     "CMAKE_CXX_COMPILER": "/usr/bin/clang++"
   },
-  "cmake.generator": "Unix Makefiles" // Optional: if Ninja is installed
+  "cmake.generator": "Unix Makefiles",
+  "files.associations": {
+    "vector": "cpp"
+  } // Optional: if Ninja is installed
 }
