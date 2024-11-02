@@ -27,6 +27,8 @@ class Algorithm {
         long double totalTime;
         long double currentTime;
 
+        vector<int> played;
+
         Algorithm(string n, int i){
             name = n;
             id = i;
@@ -253,7 +255,21 @@ class Tournament {
     int matchesPlayed = 1;
     int rounds;
     vector<Algorithm*> algos;
-    vector<vector<pair<int, int>>> matchUps;
+    vector<vector<pair<Algorithm*, Algorithm*>>> matchUps;
+
+
+    bool havePlayed(Algorithm* team1, Algorithm* team2){
+        return find(team1->played.begin(), team1->played.end(), team2->id) != team1->played.end();
+    }
+
+    Algorithm* matchBestOpponent(Algorithm* current, vector<Algorithm*>& available){
+        for(auto opponent : available){
+            if(opponent != current && !havePlayed(current, opponent)){
+                return opponent;
+            }
+        }
+        return nullptr;
+    }
 
     public:
     Tournament() {
@@ -266,42 +282,32 @@ class Tournament {
        // matchUps.resize(rounds / 2, vector<pair<int, int>>(rounds));
     }
 
-    void calculateMatchUps(){
+    void calculateMatchUps(int round){
         int n = algos.size();
-        vector<int> row;
-        vector<int> col;
-        for(int i = 0; i < n; i++){
-            row.push_back(i + 1);
-            col.push_back(i + 1);
-        };
-        int index = 0;
-        // for(int round = 0; round < n - 1; round++){
-        //     vector<pair<int,int>> thisRound;
-        //     for(int i = 0; i < n / 2; i++){
-        //         index = (index + i) % (n - 1);
-        //         if (row[index] == row[n - 1 -index]) continue;
-        //         int first = row[index];
-        //         int second = row[n - 1 - index];
-        //         thisRound.push_back({first, second});
-        //     }
-        //     matchUps.push_back(thisRound);
-        // }
-
-        for(int i = 0; i < row.size(); i++){
-            vector<pair<int, int>> thisRound;
-            for(int j = 0; j < col.size(); j++){
-                if(i == j) continue;
-                thisRound.push_back({row[i], col[j]});
+        
+        vector<Algorithm*> sortedAlg = algos;
+        sort(sortedAlg.begin(), sortedAlg.end(), [](Algorithm* a, Algorithm* b){
+            if (a->points == b->points)
+                return a->fastestTime < b->fastestTime;
+            return a->points > b->points;
+        });
+        
+       vector<Algorithm*> available = sortedAlg;
+       vector<pair<Algorithm*, Algorithm*>> thisRound;
+       while(available.size() >= 2){
+            Algorithm* current = available[0];
+            Algorithm* opponent = matchBestOpponent(current, available);
+            if(opponent){
+                thisRound.push_back({current, opponent});
+                current->played.push_back(opponent->id);
+                opponent->played.push_back(current->id);
+            available.erase(remove(available.begin(), available.end(), opponent), available.end());
+                available.erase(available.begin());
+            } else {
+                available.erase(available.begin());
             }
-            matchUps.push_back(thisRound);
-        }
-
-        for(int round  = 0; round < matchUps.size(); round++){
-            cout << "ROUND " << round << endl;
-            for(int i = 0; i < n - 1; i++){
-                cout << matchUps[round][i].first << " vs  " << matchUps[round][i].second << endl;
-            }
-        }
+       }
+        matchUps[round] = thisRound;
     }
 
     void playMatch(Algorithm *team1, Algorithm *team2, vector<int> a){
@@ -335,10 +341,13 @@ class Tournament {
 
     }
     void playTournament(vector<int> arr){
-        for (auto a: algos){
-            for(auto b: algos){
-                if(a->id == b->id) continue;
-                playMatch(a, b, arr);
+        matchUps.resize(algos.size() - 1);
+        pointsTable();
+        for(int round = 0; round < algos.size() - 1; round++){
+            cout << "ROUND " << round+1 << endl;
+            calculateMatchUps(round);
+            for(const auto &match : matchUps[round]){ 
+                playMatch(match.first, match.second, arr);
             }
             pointsTable();
         }
@@ -364,17 +373,16 @@ class Tournament {
 };
 
 int main(void){
-//    random_device rd;
-//    uniform_int_distribution d(1, 100);
+   random_device rd;
+   uniform_int_distribution d(1, 100);
 
-//    vector<int> a;
-//    const int MAX_SIZE = 10000;
-//    for(int i  = 0; i < MAX_SIZE; i++){
-//         int num = d(rd);
-//         a.push_back(num);
-//    }
+   vector<int> a;
+   const int MAX_SIZE = 10000;
+   for(int i  = 0; i < MAX_SIZE; i++){
+        int num = d(rd);
+        a.push_back(num);
+   }
 
     Tournament tourney;
-    tourney.calculateMatchUps();
-//     tourney.playTournament(a);
+    tourney.playTournament(a);
 }
