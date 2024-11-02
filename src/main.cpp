@@ -57,7 +57,7 @@ class Algorithm {
                 break;
             }
             ostringstream output;
-            output << time / 1000000000 << "s";
+            output << fixed << setprecision(9) << time / 1000000000 << "s";
             return output.str();
         }
 
@@ -219,15 +219,89 @@ class MergeSort : public Algorithm {
 
 };
 
+class InsertionSort : public Algorithm {
+    public:
+    InsertionSort() : Algorithm("Insertion Sort", 4){};
+
+    void sort(vector<int> arr){
+        auto start = high_resolution_clock::now();
+
+        int n = arr.size();
+        for (int i = 1; i < n; ++i) {
+            int key = arr[i];
+            int j = i - 1;
+
+            while (j >= 0 && arr[j] > key) {
+                arr[j + 1] = arr[j];
+                j = j - 1;
+            }
+            arr[j + 1] = key;
+        }
+
+        auto stop = high_resolution_clock::now();
+        auto duration = duration_cast<nanoseconds>(stop - start);
+        double totalTime = duration.count();
+        currentTime = totalTime;
+        if(fastestTime > totalTime || fastestTime == 0) fastestTime = totalTime;
+        if(slowestTime < totalTime || slowestTime == 0) slowestTime = totalTime;
+        tries++;
+    }
+
+};
+
 class Tournament {
-    int matchesPlayed = 0;
+    int matchesPlayed = 1;
+    int rounds;
     vector<Algorithm*> algos;
+    vector<vector<pair<int, int>>> matchUps;
 
     public:
     Tournament() {
         algos.push_back(new SelectionSort());
         algos.push_back(new BubbleSort());
         algos.push_back(new MergeSort());
+        algos.push_back(new InsertionSort());
+
+        rounds = algos.size() - 1;
+       // matchUps.resize(rounds / 2, vector<pair<int, int>>(rounds));
+    }
+
+    void calculateMatchUps(){
+        int n = algos.size();
+        vector<int> row;
+        vector<int> col;
+        for(int i = 0; i < n; i++){
+            row.push_back(i + 1);
+            col.push_back(i + 1);
+        };
+        int index = 0;
+        // for(int round = 0; round < n - 1; round++){
+        //     vector<pair<int,int>> thisRound;
+        //     for(int i = 0; i < n / 2; i++){
+        //         index = (index + i) % (n - 1);
+        //         if (row[index] == row[n - 1 -index]) continue;
+        //         int first = row[index];
+        //         int second = row[n - 1 - index];
+        //         thisRound.push_back({first, second});
+        //     }
+        //     matchUps.push_back(thisRound);
+        // }
+
+        for(int i = 0; i < row.size(); i++){
+            vector<pair<int, int>> thisRound;
+            for(int j = 0; j < col.size(); j++){
+                if(i == j) continue;
+                thisRound.push_back({row[i], col[j]});
+            }
+            matchUps.push_back(thisRound);
+        }
+
+        for(int round  = 0; round < matchUps.size(); round++){
+            cout << "ROUND " << round << endl;
+            for(int i = 0; i < n - 1; i++){
+                cout << matchUps[round][i].first << " vs  " << matchUps[round][i].second << endl;
+            }
+        }
     }
 
     void playMatch(Algorithm *team1, Algorithm *team2, vector<int> a){
@@ -236,21 +310,29 @@ class Tournament {
 
         team1->matches++;
         team2->matches++;
+        
+        cout << "MATCH " << matchesPlayed++ << ":\n" << team1->name << "\tvs\t" << team2->name << endl;
+        cout << team1->timeAsString(4) << "\t\t" << team2->timeAsString(4) << endl;
 
         if(team1->currentTime < team2->currentTime){
+            cout << "WINNER: " << team1->name << endl;
             team1->points += 3;
             team1->wins++;
             team2->losses++;
         } else if (team2->currentTime < team1->currentTime){
+            cout << "WINNER: " << team2->name << endl;
             team2->points += 3;
             team2->wins++;
             team1->losses++;
         } else {
+            cout << "MATCH TIED" << endl;
             team1->points++;
             team2->points++;
             team1->ties++;
             team2->ties++;
         }
+        cout << endl;
+
     }
     void playTournament(vector<int> arr){
         for (auto a: algos){
@@ -258,6 +340,7 @@ class Tournament {
                 if(a->id == b->id) continue;
                 playMatch(a, b, arr);
             }
+            pointsTable();
         }
     }
 
@@ -281,17 +364,17 @@ class Tournament {
 };
 
 int main(void){
-   random_device rd;
-   uniform_int_distribution d(1, 100);
+//    random_device rd;
+//    uniform_int_distribution d(1, 100);
 
-   vector<int> a;
-   const int MAX_SIZE = 10000;
-   for(int i  = 0; i < MAX_SIZE; i++){
-        int num = d(rd);
-        a.push_back(num);
-   }
+//    vector<int> a;
+//    const int MAX_SIZE = 10000;
+//    for(int i  = 0; i < MAX_SIZE; i++){
+//         int num = d(rd);
+//         a.push_back(num);
+//    }
 
     Tournament tourney;
-    tourney.playTournament(a);
-    tourney.pointsTable();
+    tourney.calculateMatchUps();
+//     tourney.playTournament(a);
 }
