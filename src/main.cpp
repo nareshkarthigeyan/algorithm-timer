@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <sstream>
 #include <string>
+#include <set>
+#include <queue>
 
 using namespace std;
 using namespace std::chrono;
@@ -202,7 +204,7 @@ class MergeSort : public Algorithm {
         merge(arr, left, mid, right);
     }
 
-    public:
+public:
     MergeSort() : Algorithm("Merge Sort", 3){};
 
     void sort(vector<int> a){
@@ -1399,160 +1401,65 @@ public:
 };
 
 class PatienceSort : public Algorithm {
-private:
-    struct Pile {
-        int* cards;
-        int size;
-        int capacity;
-        
-        Pile() {
-            capacity = 10;
-            cards = new int[capacity];
-            size = 0;
-        }
-        
-        ~Pile() {
-            delete[] cards;
-        }
-        
-        int top() const { 
-            return cards[size - 1]; 
-        }
-        
-        void push(int x) {
-            if (size == capacity) {
-                int newCapacity = capacity * 2;
-                int* newCards = new int[newCapacity];
-                for (int i = 0; i < size; i++) {
-                    newCards[i] = cards[i];
-                }
-                delete[] cards;
-                cards = newCards;
-                capacity = newCapacity;
-            }
-            cards[size++] = x;
-        }
-        
-        int pop() {
-            int x = cards[--size];
-            return x;
-        }
-        
-        bool empty() const { 
-            return size == 0; 
-        }
-    };
-    
 public:
-    PatienceSort() : Algorithm("Patience Sort", 32) {};
-    
+    PatienceSort() : Algorithm("Patience Sort", 21) {};
+
     void sort(vector<int> arr) {
         auto start = high_resolution_clock::now();
-        
-        Pile* piles = new Pile[arr.size()];
-        int numPiles = 0;
-        
+
+        if (arr.empty()) return;
+
         // Create piles
-        for(int i = 0; i < arr.size(); i++) {
-            int x = arr[i];
+        vector<vector<int>> piles;
+        
+        // For each number, try to place it in a pile
+        for (int num : arr) {
             bool placed = false;
-            for(int j = 0; j < numPiles; j++) {
-                if(piles[j].top() >= x) {
-                    piles[j].push(x);
+            
+            // Try to place on existing pile
+            for (auto& pile : piles) {
+                if (pile.back() > num) {
+                    pile.push_back(num);
                     placed = true;
                     break;
                 }
             }
-            if(!placed) {
-                piles[numPiles].push(x);
-                numPiles++;
-            }
-        }
-        
-        // Manual min heap implementation
-        int* heap = new int[numPiles * 2];
-        int* pileIndices = new int[numPiles];
-        int heapSize = 0;
-        
-        // Initialize heap with top cards
-        for(int i = 0; i < numPiles; i++) {
-            if(!piles[i].empty()) {
-                heap[heapSize] = piles[i].top();
-                pileIndices[heapSize] = i;
-                int curr = heapSize;
-                while(curr > 0) {
-                    int parent = (curr - 1) / 2;
-                    if(heap[curr] < heap[parent]) {
-                        // Swap heap elements
-                        int temp = heap[curr];
-                        heap[curr] = heap[parent]; 
-                        heap[parent] = temp;
-                        // Swap pile indices
-                        temp = pileIndices[curr];
-                        pileIndices[curr] = pileIndices[parent];
-                        pileIndices[parent] = temp;
-                        curr = parent;
-                    } else {
-                        break;
-                    }
-                }
-                heapSize++;
-            }
-        }
-        
-        // Merge into final sorted array
-        int index = 0;
-        while(heapSize > 0) {
-            arr[index++] = heap[0];
-            int pileIdx = pileIndices[0];
-            piles[pileIdx].pop();
             
-            if(!piles[pileIdx].empty()) {
-                heap[0] = piles[pileIdx].top();
-            } else {
-                heap[0] = heap[heapSize - 1];
-                pileIndices[0] = pileIndices[heapSize - 1];
-                heapSize--;
-            }
-            
-            // Heapify down
-            int curr = 0;
-            while(true) {
-                int smallest = curr;
-                int left = 2 * curr + 1;
-                int right = 2 * curr + 2;
-                
-                if(left < heapSize && heap[left] < heap[smallest])
-                    smallest = left;
-                if(right < heapSize && heap[right] < heap[smallest]) 
-                    smallest = right;
-                
-                if(smallest != curr) {
-                    // Swap heap elements
-                    int temp = heap[curr];
-                    heap[curr] = heap[smallest];
-                    heap[smallest] = temp;
-                    // Swap pile indices  
-                    temp = pileIndices[curr];
-                    pileIndices[curr] = pileIndices[smallest];
-                    pileIndices[smallest] = temp;
-                    curr = smallest;
-                } else {
-                    break;
-                }
+            // If not placed, create new pile
+            if (!placed) {
+                piles.push_back({num});
             }
         }
         
-        delete[] heap;
-        delete[] pileIndices;
-        delete[] piles;
+        // Merge piles using a priority queue
+        priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> pq;
         
+        // Initialize with the top of each pile
+        for (size_t i = 0; i < piles.size(); i++) {
+            if (!piles[i].empty()) {
+                pq.push({piles[i].back(), i});
+                piles[i].pop_back();
+            }
+        }
+        
+        // Merge
+        for (int i = arr.size() - 1; i >= 0; i--) {
+            pair<int, int> smallest = pq.top();
+            pq.pop();
+            arr[i] = smallest.first;
+            
+            if (!piles[smallest.second].empty()) {
+                pq.push({piles[smallest.second].back(), smallest.second});
+                piles[smallest.second].pop_back();
+            }
+        }
+
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<nanoseconds>(stop - start);
         double totalTime = duration.count();
         currentTime = totalTime;
-        if(fastestTime > totalTime || fastestTime == 0) fastestTime = totalTime;
-        if(slowestTime < totalTime || slowestTime == 0) slowestTime = totalTime;
+        if (fastestTime > totalTime || fastestTime == 0) fastestTime = totalTime;
+        if (slowestTime < totalTime || slowestTime == 0) slowestTime = totalTime;
         tries++;
     }
 };
@@ -2469,7 +2376,7 @@ public:
         vector<Algorithm*> sortedAlg = algorithms;
         sortedAlg.erase(remove(sortedAlg.begin(), sortedAlg.end(), nullptr), sortedAlg.end());
 
-        sort(sortedAlg.begin(), sortedAlg.end(), [](Algorithm* a, Algorithm* b) {
+        std::sort(sortedAlg.begin(), sortedAlg.end(), [](Algorithm* a, Algorithm* b) {
             if (a->points == b->points)
                 return a->fastestTime < b->fastestTime;
             return a->points > b->points;
@@ -2487,7 +2394,7 @@ public:
              << " ║ " << setw(13) << "SlowestTime"
              << " ║ " << setw(13) << "CurrentTime"
              << " ║ " << setw(6) << "Points" << "   ║\n";
-        cout << "╠═════╬════��════════════════════════╬═════════╬══════╬════════╬══════╬═══════════════╬═══════════════╬═══════════════╬════════╣\n";
+        cout << "╠═════╬════════════════════════════╬═════════╬══════╬════════╬══════╬═══════════════╬═══════════════╬═══════════════╬════════╣\n";
 
         int pos = 1;
         for (auto a : sortedAlg) {
@@ -2504,16 +2411,80 @@ public:
                  << " ║ " << setw(6) << a->points << "   ║\n";
         }
         
-        cout << "╚═════╩═════════════════════════════╩═════════╩══════╩════════╩══════╩═══════════════╩═══════════════╩═══════════════╩════════╝\n\n";
+        cout << "╚═════╩═══════════════════════════╩═════════╩══════╩════════╩══════╩═══════════════╩═══════════════╩═══════════════╩════════╝\n\n";
+    }
+
+    void pointsTableWithQualification() {
+        vector<Algorithm*> sortedAlg = algorithms;
+        sortedAlg.erase(remove(sortedAlg.begin(), sortedAlg.end(), nullptr), sortedAlg.end());
+
+        // Sort all algorithms by points and fastest time
+        std::sort(sortedAlg.begin(), sortedAlg.end(), [](Algorithm* a, Algorithm* b) {
+            if (a->points == b->points)
+                return a->fastestTime < b->fastestTime;
+            return a->points > b->points;
+        });
+
+        // Identify qualified teams (top 24)
+        set<Algorithm*> qualifiedTeams;
+        for (int i = 0; i < min(24, (int)sortedAlg.size()); i++) {
+            qualifiedTeams.insert(sortedAlg[i]);
+        }
+
+        // Print header
+        cout << "\n╔═════╦════════════════════════════���══════╦═════════╦══════╦═══════╦══════╦═══════════════╦═══════════════╦═══════════════╦════════╗\n";
+        cout << "║ " << left << setw(3) << "Pos" 
+             << " ║ " << setw(30) << "Algorithm"
+             << " ║ " << setw(7) << "Matches"
+             << " ║ " << setw(4) << "Wins"
+             << " ║ " << setw(5) << "Losses"
+             << " ║ " << setw(4) << "Ties"
+             << " ║ " << setw(13) << "FastestTime"
+             << " ║ " << setw(13) << "SlowestTime"
+             << " ║ " << setw(13) << "CurrentTime"
+             << " ║ " << setw(6) << "Points" << "   ║\n";
+        cout << "╠═════╬═══════════════════════════════════╬═════════╬══════╬═══════╬══════╬═══════════════╬═══════════════╬═══════════════╬════════╣\n";
+
+        // Print each algorithm's stats
+        int pos = 1;
+        for (auto a : sortedAlg) {
+            string algoName = a->name;
+            if (qualifiedTeams.find(a) != qualifiedTeams.end()) {
+                algoName += " (QUALIFIED)";
+            }
+
+            cout << "║ " << left << setw(3) << pos++ 
+                 << " ║ " << setw(30) << algoName
+                 << " ║ " << setw(7) << a->matches
+                 << " ║ " << setw(4) << a->wins
+                 << " ║ " << setw(5) << a->losses
+                 << " ║ " << setw(4) << a->ties
+                 << " ║ " << setw(13) << a->timeAsString(1)  // Fastest
+                 << " ║ " << setw(13) << a->timeAsString(2)  // Slowest
+                 << " ║ " << setw(13) << a->timeAsString(4)  // Current
+                 << " ║ " << setw(6) << a->points << "   ║\n";
+
+            // Add a separator line after qualified teams
+            if (pos == 25) {
+                cout << "╠═════╬═══════════════════════════════════╬════════╬══════╬═══════╬══════╬═══════════════╬═══════════════╬═══════════════╬════════╣\n";
+            }
+        }
+        
+        cout << "╚═════╩═══════════════════════════════════╩═════════╩══════╩═══════╩══════╩═══════════════╩═══════════════╩═══════════════╩════════╝\n\n";
     }
 };
 
 class WorldCup : public Tournament {
 private:
-    vector<vector<Algorithm*>> groups;
-    const int TEAMS_PER_GROUP = 4;
-
+    // Add these declarations at the start of the private section
+    const int TEAMS_PER_GROUP = 4;  // Define how many teams per group
+    vector<vector<Algorithm*>> groups;  // Vector to store groups
+    
     vector<Algorithm*> qualifiedTeams;
+    vector<Algorithm*> round16Teams;
+    vector<Algorithm*> quarterFinalists;
+    vector<Algorithm*> semiFinalists;
+    vector<Algorithm*> finalists;
     Algorithm* champion = nullptr;
     Algorithm* runnerUp = nullptr;
     Algorithm* thirdPlace = nullptr;
@@ -2557,17 +2528,17 @@ private:
         if (type == "random") {
             random_device rd;
             uniform_int_distribution<int> dist(1, size * 10);
-            for (int i = 0; i < size; i++) {
+            for (int i =0; i < size; i++) {
                 arr[i] = dist(rd);
             }
         }
         else if (type == "sorted") {
-            for (int i = 0; i < size; i++) {
+            for (int i =0; i < size; i++) {
                 arr[i] = i;
             }
         }
         else if (type == "reverse") {
-            for (int i = 0; i < size; i++) {
+            for (int i =0; i < size; i++) {
                 arr[i] = size - i;
             }
         }
@@ -2716,7 +2687,7 @@ public:
             cout << "─────────────────\n\n";
 
             // Round robin within each group
-            for (int i = 0; i < groups[g].size(); i++) {
+            for (int i =0; i < groups[g].size(); i++) {
                 for (int j = i + 1; j < groups[g].size(); j++) {
                     playGroupMatch(groups[g][i], groups[g][j], size);
                 }
@@ -2732,7 +2703,7 @@ public:
         vector<Algorithm*> groupTeams = groups[groupIndex];
         
         // Sort teams by points and then by fastest time
-        sort(groupTeams.begin(), groupTeams.end(), [](Algorithm* a, Algorithm* b) {
+        std::sort(groupTeams.begin(), groupTeams.end(), [](Algorithm* a, Algorithm* b) {
             if (a->points == b->points)
                 return a->fastestTime < b->fastestTime;
             return a->points > b->points;
@@ -2761,81 +2732,98 @@ public:
     }
 
     void playKnockoutStage(int size) {
-        // Get top 2 teams from each group
+        cout << "\n╔═══════════════════════════════════════════════════════════════════╗\n";
+        cout << "║                    FINAL STANDINGS                               ║\n";
+        cout << "╚═══════════════════════════════════════════════════════════════════╝\n\n";
+        
+        pointsTableWithQualification();
+
+        // Get top 24 teams
         qualifiedTeams.clear();
-        for (const auto& group : groups) {
-            vector<Algorithm*> groupTeams = group;
-            sort(groupTeams.begin(), groupTeams.end(), [](Algorithm* a, Algorithm* b) {
-                if (a->points == b->points)
-                    return a->fastestTime < b->fastestTime;
-                return a->points > b->points;
-            });
-            if (groupTeams.size() >= 1) qualifiedTeams.push_back(groupTeams[0]);
-            if (groupTeams.size() >= 2) qualifiedTeams.push_back(groupTeams[1]);
+        vector<Algorithm*> sortedAlg = algorithms;
+        std::sort(sortedAlg.begin(), sortedAlg.end(), [](Algorithm* a, Algorithm* b) {
+            if (a->points == b->points)
+                return a->fastestTime < b->fastestTime;
+            return a->points > b->points;
+        });
+
+        for (int i = 0; i < min(24, (int)sortedAlg.size()); i++) {
+            qualifiedTeams.push_back(sortedAlg[i]);
         }
 
-        // Round of 18
-        cout << "\n╔════════════════════════════════════════════╗\n";
-        cout << "║              ROUND OF 18                   ║\n";
-        cout << "╚════════════════════════════════════════════╝\n";
+        // Round of 24 (8 teams get byes to Round of 16)
+        cout << "\n╔═══════════════════════════════════════════════════════════════════╗\n";
+        cout << "║                       ROUND OF 24 MATCHES                         ║\n";
+        cout << "╚═══════════════════════════════════════════════════════════════════╝\n\n";
 
-        vector<Algorithm*> quarterFinalists;
-        for (int i =0; i < qualifiedTeams.size(); i += 2) {
+        round16Teams.clear();
+        drawCurrentBracket(qualifiedTeams, round16Teams, quarterFinalists, semiFinalists, finalists);
+
+        // Top 8 teams get byes
+        for (int i = 0; i < 8; i++) {
+            cout << "\nBYE: " << qualifiedTeams[i]->name << " automatically advances to Round of 16\n";
+            round16Teams.push_back(qualifiedTeams[i]);
+        }
+
+        // Remaining 16 teams play for 8 spots
+        for (int i = 8; i < 24; i += 2) {
             if (i + 1 < qualifiedTeams.size()) {
-                Algorithm* winner = playKnockoutMatch(qualifiedTeams[i], qualifiedTeams[i + 1], size, "ROUND OF 16");
-                quarterFinalists.push_back(winner);
+                Algorithm* winner = playKnockoutMatch(qualifiedTeams[i], qualifiedTeams[i + 1], size, "ROUND OF 24");
+                round16Teams.push_back(winner);
             }
+        }
+
+        // Round of 16
+        cout << "\n╔═══════════════════════════════════════════════════════════════════╗\n";
+        cout << "║                       ROUND OF 16 MATCHES                         ║\n";
+        cout << "╚══════════════════════════════════════════════════════════════════╝\n\n";
+
+        quarterFinalists.clear();
+        drawCurrentBracket(qualifiedTeams, round16Teams, quarterFinalists, semiFinalists, finalists);
+
+        for (int i = 0; i < round16Teams.size(); i += 2) {
+            Algorithm* winner = playKnockoutMatch(round16Teams[i], round16Teams[i + 1], size, "ROUND OF 16");
+            quarterFinalists.push_back(winner);
         }
 
         // Quarter Finals
-        cout << "\n╔════════════════════════════════════════════╗\n";
-        cout << "║            QUARTER FINALS                  ║\n";
-        cout << "╚════════════════════════════════════════════╝\n";
+        cout << "\n╔═══════════════════════════════════════════════════════════════════╗\n";
+        cout << "║                       QUARTER FINALS                              ║\n";
+        cout << "╚═══════════════════════════════════════════════════════════════════╝\n\n";
 
-        vector<Algorithm*> semiFinalists;
+        semiFinalists.clear();
+        drawCurrentBracket(qualifiedTeams, round16Teams, quarterFinalists, semiFinalists, finalists);
+
         for (int i = 0; i < quarterFinalists.size(); i += 2) {
-            if (i + 1 < quarterFinalists.size()) {
-                Algorithm* winner = playKnockoutMatch(quarterFinalists[i], quarterFinalists[i + 1], size, "QUARTER FINAL");
-                semiFinalists.push_back(winner);
-            }
+            Algorithm* winner = playKnockoutMatch(quarterFinalists[i], quarterFinalists[i + 1], size, "QUARTER FINALS");
+            semiFinalists.push_back(winner);
         }
 
         // Semi Finals
-        cout << "\n╔════════════════════════════════════════════╗\n";
-        cout << "║             SEMI FINALS                    ║\n";
-        cout << "╚════════════════════════════════════════════╝\n";
+        cout << "\n╔═════════════════════════════════════════════════════════════════╗\n";
+        cout << "║                       SEMI FINALS                                 ║\n";
+        cout << "╚═══════════════════════════════════════════════════════════════════╝\n\n";
 
-        vector<Algorithm*> finalists;
-        vector<Algorithm*> thirdPlaceContenders;
+        finalists.clear();
+        drawCurrentBracket(qualifiedTeams, round16Teams, quarterFinalists, semiFinalists, finalists);
+
         for (int i = 0; i < semiFinalists.size(); i += 2) {
-            if (i + 1 < semiFinalists.size()) {
-                Algorithm* winner = playKnockoutMatch(semiFinalists[i], semiFinalists[i + 1], size, "SEMI FINAL");
-                Algorithm* loser = (winner == semiFinalists[i]) ? semiFinalists[i + 1] : semiFinalists[i];
-                finalists.push_back(winner);
-                thirdPlaceContenders.push_back(loser);
-            }
-        }
-
-        // Third Place Playoff
-        cout << "\n╔════════════════════════════════════════════╗\n";
-        cout << "║          THIRD PLACE PLAYOFF               ║\n";
-        cout << "╚════════════════════════════════════════════╝\n";
-
-        if (thirdPlaceContenders.size() >= 2) {
-            thirdPlace = playKnockoutMatch(thirdPlaceContenders[0], thirdPlaceContenders[1], size, "THIRD PLACE PLAYOFF");
+            Algorithm* winner = playKnockoutMatch(semiFinalists[i], semiFinalists[i + 1], size, "SEMI FINALS");
+            finalists.push_back(winner);
         }
 
         // Final
-        cout << "\n╔════════════════════════════════════════════╗\n";
-        cout << "║               FINAL                        ║\n";
-        cout << "╚════════════════════════════════════════════╝\n";
+        cout << "\n╔═══════════════════════════════════════════════════════════════════╗\n";
+        cout << "║                       FINAL                                       ║\n";
+        cout << "╚═══════════════════════════════════════════════════════════════════╝\n\n";
+
+        drawCurrentBracket(qualifiedTeams, round16Teams, quarterFinalists, semiFinalists, finalists);
 
         if (finalists.size() >= 2) {
             champion = playKnockoutMatch(finalists[0], finalists[1], size, "FINAL");
             runnerUp = (champion == finalists[0]) ? finalists[1] : finalists[0];
         }
 
-        // Print Final Results
         printFinalResults();
     }
 
@@ -2852,14 +2840,14 @@ public:
         if (thirdPlace) {
             cout << "║ THIRD PLACE:  " << left << setw(27) << thirdPlace->name << " ║\n";
         }
-        cout << "╚════════════════════════════════════════════╝\n\n";
+        cout << "╚═══════════════════════════════════════════╝\n\n";
 
         // Print final tournament statistics
         pointsTable();
     }
 
     void runWorldCup(int size) {
-        cout << "\n╔════════════════════════════════════════════╗\n";
+        cout << "\n╔══════════════════════════════════════════╗\n";
         cout << "║              WORLD CUP 2024                ║\n";
         cout << "╚════════════════════════════════════════════╝\n\n";
 
@@ -2879,6 +2867,110 @@ private:
         cout << "Random Array Tournament Winner:  " << champion->name << "\n";
         cout << "Sorted Array Tournament Winner:  " << champion->name << "\n";
         cout << "Reverse Array Tournament Winner: " << champion->name << "\n\n";
+    }
+
+    void drawKnockoutBracket(const vector<Algorithm*>& teams, const string& stage) {
+        cout << "\n╔═══════════════════════════════════════════════════════════════════════════════════╗\n";
+        cout << "║                               " << stage << " BRACKET                               ║\n";
+        cout << "╚═════════════════���═════════════════════════════════════════════════════════════════╝\n\n";
+
+        if (stage == "ROUND OF 18") {
+            cout << "Byes:\n";
+            for (int i = 0; i < 6; i++) {
+                cout << "----" << setw(30) << left << teams[i]->name << "-----> Quarter Finals\n";
+            }
+            cout << "\nMatches:\n";
+            for (int i = 6; i < teams.size(); i += 2) {
+                if (i + 1 < teams.size()) {
+                    cout << "----" << setw(30) << left << teams[i]->name << "\n";
+                    cout << "                                        >-----> Quarter Finals\n";
+                    cout << "----" << setw(30) << left << teams[i + 1]->name << "\n\n";
+                }
+            }
+        }
+        else if (stage == "QUARTER FINALS") {
+            for (int i = 0; i < teams.size(); i += 2) {
+                if (i + 1 < teams.size()) {
+                    cout << "----" << setw(30) << left << teams[i]->name << "\n";
+                    cout << "                                        >-----> Semi Finals\n";
+                    cout << "----" << setw(30) << left << teams[i + 1]->name << "\n\n";
+                }
+            }
+        }
+        else if (stage == "SEMI FINALS") {
+            cout << "----" << setw(30) << left << teams[0]->name << "\n";
+            cout << "                                        >-----> Final\n";
+            cout << "----" << setw(30) << left << teams[1]->name << "\n\n";
+            cout << "----" << setw(30) << left << teams[2]->name << "\n";
+            cout << "                                        >-----> Final\n";
+            cout << "----" << setw(30) << left << teams[3]->name << "\n";
+        }
+        else if (stage == "FINAL") {
+            cout << "----" << setw(30) << left << teams[0]->name << "\n";
+            cout << "                                        >-----> CHAMPION\n";
+            cout << "----" << setw(30) << left << teams[1]->name << "\n";
+        }
+        cout << "\n";
+    }
+
+    void drawCurrentBracket(const vector<Algorithm*>& r24Teams, 
+                           const vector<Algorithm*>& r16Teams,
+                           const vector<Algorithm*>& qfTeams,
+                           const vector<Algorithm*>& sfTeams,
+                           const vector<Algorithm*>& fTeams) {
+        cout << "\n                              KNOCKOUT STAGE BRACKET\n";
+        cout << "════════════════════════════════════════════════════════════════════════════════════════════════════\n\n";
+        cout << "Round of 24            Round of 16             Quarter Finals          Semi Finals         Final\n";
+        cout << "──────────────────     ──────────────────     ───────────────────     ──────────────     ────────\n\n";
+
+        // First Quarter
+        cout << setw(18) << left << (r24Teams.size() > 0 ? r24Teams[0]->name + " (bye)" : "TBD") << "\n";
+        cout << setw(20) << " " << "├──" << setw(18) << left << (r16Teams.size() > 0 ? r16Teams[0]->name : "TBD") << "┐\n";
+        cout << setw(18) << left << (r24Teams.size() > 8 ? r24Teams[8]->name : "TBD") << "┤\n";
+        cout << setw(18) << left << (r24Teams.size() > 9 ? r24Teams[9]->name : "TBD") << "┘     │\n";
+        cout << setw(42) << " " << "├──" << setw(18) << left << (qfTeams.size() > 0 ? qfTeams[0]->name : "TBD") << "┐\n";
+        cout << setw(18) << left << (r24Teams.size() > 1 ? r24Teams[1]->name + " (bye)" : "TBD") << "┐     │\n";
+        cout << setw(20) << " " << "├──" << setw(18) << left << (r16Teams.size() > 1 ? r16Teams[1]->name : "TBD") << "┘     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 10 ? r24Teams[10]->name : "TBD") << "┤           │\n";
+        cout << setw(18) << left << (r24Teams.size() > 11 ? r24Teams[11]->name : "TBD") << "┘           │\n";
+        cout << setw(64) << " " << "├──" << setw(18) << left << (sfTeams.size() > 0 ? sfTeams[0]->name : "TBD") << "┐\n";
+
+        // Second Quarter
+        cout << setw(18) << left << (r24Teams.size() > 2 ? r24Teams[2]->name + " (bye)" : "TBD") << "┐           │\n";
+        cout << setw(20) << " " << "├──" << setw(18) << left << (r16Teams.size() > 2 ? r16Teams[2]->name : "TBD") << "┐     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 12 ? r24Teams[12]->name : "TBD") << "┤     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 13 ? r24Teams[13]->name : "TBD") << "┘     │     │\n";
+        cout << setw(42) << " " << "├──" << setw(18) << left << (qfTeams.size() > 1 ? qfTeams[1]->name : "TBD") << "┘     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 3 ? r24Teams[3]->name + " (bye)" : "TBD") << "┐     │           │\n";
+        cout << setw(20) << " " << "├──" << setw(18) << left << (r16Teams.size() > 3 ? r16Teams[3]->name : "TBD") << "┘           │\n";
+        cout << setw(18) << left << (r24Teams.size() > 14 ? r24Teams[14]->name : "TBD") << "┤                     \n";
+        cout << setw(18) << left << (r24Teams.size() > 15 ? r24Teams[15]->name : "TBD") << "┘                     │\n";
+        cout << setw(86) << " " << "├──" << setw(18) << left << (fTeams.size() > 0 ? fTeams[0]->name : "TBD") << "\n";
+
+        // Third Quarter
+        cout << setw(18) << left << (r24Teams.size() > 4 ? r24Teams[4]->name + " (bye)" : "TBD") << "┐                     │\n";
+        cout << setw(20) << " " << "├──" << setw(18) << left << (r16Teams.size() > 4 ? r16Teams[4]->name : "TBD") << "┐           │\n";
+        cout << setw(18) << left << (r24Teams.size() > 16 ? r24Teams[16]->name : "TBD") << "┤     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 17 ? r24Teams[17]->name : "TBD") << "┘     │     │\n";
+        cout << setw(42) << " " << "├──" << setw(18) << left << (qfTeams.size() > 2 ? qfTeams[2]->name : "TBD") << "┐     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 5 ? r24Teams[5]->name + " (bye)" : "TBD") << "┐     │           │     │\n";
+        cout << setw(20) << " " << "├──" << setw(18) << left << (r16Teams.size() > 5 ? r16Teams[5]->name : "TBD") << "┘     │     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 18 ? r24Teams[18]->name : "TBD") << "┤           │     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 19 ? r24Teams[19]->name : "TBD") << "┘           │     │\n";
+        cout << setw(64) << " " << "├──" << setw(18) << left << (sfTeams.size() > 1 ? sfTeams[1]->name : "TBD") << "┘\n";
+
+        // Fourth Quarter
+        cout << setw(18) << left << (r24Teams.size() > 6 ? r24Teams[6]->name + " (bye)" : "TBD") << "           │\n";
+        cout << setw(20) << " " << "├──" << setw(18) << left << (r16Teams.size() > 6 ? r16Teams[6]->name : "TBD") << "┐     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 20 ? r24Teams[20]->name : "TBD") << "┤     │\n";
+        cout << setw(18) << left << (r24Teams.size() > 21 ? r24Teams[21]->name : "TBD") << "┘     │     │\n";
+        cout << setw(42) << " " << "├──" << setw(18) << left << (qfTeams.size() > 3 ? qfTeams[3]->name : "TBD") << "┘\n";
+        cout << setw(18) << left << (r24Teams.size() > 7 ? r24Teams[7]->name + " (bye)" : "TBD") << "┐     │\n";
+        cout << setw(20) << " " << "├──" << setw(18) << left << (r16Teams.size() > 7 ? r16Teams[7]->name : "TBD") << "┘\n";
+        cout << setw(18) << left << (r24Teams.size() > 22 ? r24Teams[22]->name : "TBD") << "┤\n";
+        cout << setw(18) << left << (r24Teams.size() > 23 ? r24Teams[23]->name : "TBD") << "┘\n";
+
+        cout << "\n════════════════════════════════════════════════════════════════════════════════════════════════════\n\n";
     }
 };
 
@@ -2908,3 +3000,4 @@ int main(void){
     auto time = duration.count();
     cout << "Time taken for program execution: " << time / 1000 << "s\n";
 }
+
